@@ -126,10 +126,16 @@ def setup_args():
 def check_prerequisites():
     """Check if all required files exist"""
     required_files = [
-        "data/DEEN.db",
         "data/DEEN.vocab.pt",
         "output/bert_dump/topk"
     ]
+    
+    # Check for database file (with possible .db extension)
+    db_files = ["data/DEEN.db", "data/DEEN.db.db"]
+    db_found = any(os.path.exists(db_file) for db_file in db_files)
+    if not db_found:
+        print(f"Error: Required database file not found. Checked: {db_files}")
+        return False
     
     for file_path in required_files:
         if not os.path.exists(file_path):
@@ -172,6 +178,17 @@ def main():
     
     # Setup arguments
     args = setup_args()
+    
+    # Check for correct database path
+    if os.path.exists("data/DEEN.db.db"):
+        args.data_db = "data/DEEN.db.db"
+    elif os.path.exists("data/DEEN.db"):
+        args.data_db = "data/DEEN.db"
+    else:
+        print("Error: Could not find database file")
+        sys.exit(1)
+    
+    print(f"Using database: {args.data_db}")
     
     # Load vocabulary and dataset
     vocab = torch.load(args.data + '.vocab.pt')
