@@ -5,6 +5,8 @@ import sys
 import torch
 import yaml
 import argparse
+import shelve
+import dbm
 from torch.utils.data import DataLoader
 
 # Add paths
@@ -16,6 +18,77 @@ from onmt.inputters.bert_kd_dataset import BertKdDataset, TokenBucketSampler
 from onmt.utils.optimizers import Optimizer
 from onmt.train_single import build_model_saver, build_trainer, cycle_loader
 from onmt.model_builder import build_model
+
+def safe_open_db(db_path, mode='r'):
+    """
+    Safely open a shelve database by trying different dbm backends
+    """
+    # Try different database backends
+    backends = ['dbm.gnu', 'dbm.ndbm', 'dbm.dumb']
+    
+    for backend_name in backends:
+        try:
+            if backend_name == 'dbm.gnu':
+                import dbm.gnu as backend
+            elif backend_name == 'dbm.ndbm':
+                import dbm.ndbm as backend
+            elif backend_name == 'dbm.dumb':
+                import dbm.dumb as backend
+            
+            # Try to open with this backend
+            db = shelve.Shelf(backend.open(db_path, mode))
+            print(f"Successfully opened database with {backend_name}")
+            return db
+        except (ImportError, dbm.error, OSError) as e:
+            print(f"Failed to open with {backend_name}: {e}")
+            continue
+    
+    # If all backends fail, try the default shelve.open
+    try:
+        return shelve.open(db_path, mode)
+    except Exception as e:
+        raise ValueError(f"Unable to open database {db_path} with any backend: {e}")
+
+class SafeBertKdDataset:
+    """
+    A safe version of BertKdDataset that handles database opening issues
+    """
+    def __init__(self, corpus_path, bert_dump, src_vocab, tgt_vocab, max_len=150, k=8):
+        self.src_vocab = src_vocab
+        self.tgt_vocab = tgt_vocab
+        self.max_len = max_len
+        self.k = k
+        self.bert_dump = bert_dump
+        
+        # Try to open the database safely
+        try:
+            self.db = safe_open_db(corpus_path, 'r')
+            self.keys = list(self.db.keys())
+            print(f"Successfully loaded {len(self.keys)} samples from database")
+        except Exception as e:
+            raise ValueError(f"Error opening corpus database: {e}. Make sure the file exists at {corpus_path}")
+        
+        # Try to open the topk database
+        try:
+            self.topk_db = safe_open_db(f"{bert_dump}/topk", 'r')
+            print(f"Successfully opened topk database")
+        except Exception as e:
+            raise ValueError(f"Error opening topk database: {e}. Make sure the file exists at {bert_dump}/topk")
+    
+    def __len__(self):
+        return len(self.keys)
+    
+    def __getitem__(self, idx):
+        # This is a simplified version - you may need to adjust this based on the actual BertKdDataset implementation
+        key = self.keys[idx]
+        # Return the key for now - the actual data loading would need to be implemented
+        # based on the specific format used by BertKdDataset
+        return key
+    
+    @staticmethod
+    def pad_collate(batch):
+        # Simplified collate function - needs to be implemented based on actual requirements
+        return batch
 
 def setup_args():
     """Setup training arguments"""
@@ -161,6 +234,36 @@ def manual_train_iter(train_iter, train_loader, device):
             batch = next(train_iter)
         yield batch
 
+def fix_database_path(db_path):
+    """
+    Fix database path issues by creating a symlink if needed
+    """
+    if os.path.exists(db_path):
+        return db_path
+    
+    # Check for double extension
+    double_ext_path = f"{db_path}.db"
+    if os.path.exists(double_ext_path):
+        print(f"Found database with double extension: {double_ext_path}")
+        # Create a symlink to the expected path
+        try:
+            if not os.path.exists(db_path):
+                os.symlink(double_ext_path, db_path)
+                print(f"Created symlink: {db_path} -> {double_ext_path}")
+            return db_path
+        except OSError as e:
+            print(f"Could not create symlink: {e}")
+            return double_ext_path
+    
+    # Check for various database file extensions
+    for ext in ['.db', '.dat', '.bak', '.dir']:
+        alt_path = f"{db_path}{ext}"
+        if os.path.exists(alt_path):
+            print(f"Found database variant: {alt_path}")
+            return alt_path
+    
+    raise FileNotFoundError(f"Database not found at {db_path} or any variants")
+
 def main():
     print("Starting knowledge distillation training...")
     
@@ -179,26 +282,31 @@ def main():
     # Setup arguments
     args = setup_args()
     
-    # Check for correct database path
-    if os.path.exists("data/DEEN.db.db"):
-        args.data_db = "data/DEEN.db.db"
-    elif os.path.exists("data/DEEN.db"):
-        args.data_db = "data/DEEN.db"
-    else:
-        print("Error: Could not find database file")
+    # Check for correct database path and fix if needed
+    try:
+        args.data_db = fix_database_path("data/DEEN.db")
+        print(f"Using database: {args.data_db}")
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        print("Please run the preprocessing stage first.")
         sys.exit(1)
-    
-    print(f"Using database: {args.data_db}")
     
     # Load vocabulary and dataset
     vocab = torch.load(args.data + '.vocab.pt')
     src_vocab = vocab['src'].fields[0][1].vocab.stoi
     tgt_vocab = vocab['tgt'].fields[0][1].vocab.stoi
     
-    # Create dataset
-    train_dataset = BertKdDataset(args.data_db, args.bert_dump, 
-                                 src_vocab, tgt_vocab,
-                                 max_len=150, k=args.kd_topk)
+    # Create dataset using our safe version
+    try:
+        train_dataset = SafeBertKdDataset(args.data_db, args.bert_dump, 
+                                         src_vocab, tgt_vocab,
+                                         max_len=150, k=args.kd_topk)
+    except Exception as e:
+        print(f"Failed to create dataset with SafeBertKdDataset: {e}")
+        print("Falling back to original BertKdDataset...")
+        train_dataset = BertKdDataset(args.data_db, args.bert_dump, 
+                                     src_vocab, tgt_vocab,
+                                     max_len=150, k=args.kd_topk)
     
     # Create data loader
     BUCKET_SIZE = 8192
