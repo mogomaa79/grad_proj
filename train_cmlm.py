@@ -97,8 +97,8 @@ def main():
     # Training parameters
     learning_rate = 5e-5
     warmup_proportion = 0.1
-    max_steps = 100000
-    num_steps_to_run = 100000  # Full training steps
+    max_steps = 1
+    num_steps_to_run = 1  # Full training steps
     
     # Optimizer using modern AdamW from transformers
     param_optimizer = list(model.named_parameters())

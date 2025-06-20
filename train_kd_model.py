@@ -32,10 +32,10 @@ def setup_args():
     args.train_from = None
     args.max_grad_norm = None
     args.kd_topk = 8
-    args.train_steps = 100000
+    args.train_steps = 1
     args.kd_temperature = 10.0
     args.kd_alpha = 0.5
-    args.warmup_steps = 8000
+    args.warmup_steps = 1
     args.learning_rate = 2.0
     args.bert_dump = "output/bert_dump"
     args.data_db = "data/DEEN.db"
@@ -86,7 +86,7 @@ def setup_args():
     args.average_decay = 0.0
     args.average_every = 1
     args.report_manager = None
-    args.valid_steps = getattr(args, 'valid_steps', 10000)
+    args.valid_steps = getattr(args, 'valid_steps', 1)
     args.early_stopping = 0
     args.early_stopping_criteria = None
     args.valid_batch_size = 32
@@ -209,7 +209,7 @@ def main():
     trainer = build_trainer(args, 0, model, vocab, optim, model_saver=model_saver)
     
     # Training parameters
-    num_steps_to_run_kd = 100000  # Full training steps
+    num_steps_to_run_kd = 1  # Full training steps
     
     # Make sure the optimizer is tracking the step correctly
     if not hasattr(optim, 'training_step'):
@@ -220,7 +220,7 @@ def main():
     trainer.train(
         manual_train_iter(train_iter, train_loader, device),
         num_steps_to_run_kd,
-        save_checkpoint_steps=100,  # Save every 100 steps
+        save_checkpoint_steps=1,  # Save every step for debugging
         valid_iter=None
     )
     
