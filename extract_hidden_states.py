@@ -16,7 +16,7 @@ sys.path.append('./opennmt')
 from dump_teacher_hiddens import tensor_dumps, gather_hiddens, BertSampleDataset, batch_features, process_batch
 from cmlm.model import BertForSeq2seq
 
-def build_db_batched(corpus_path, out_db, bert, toker, batch_size=8, debug_mode=True, max_samples=100):
+def build_db_batched(corpus_path, out_db, bert, toker, batch_size=8, debug_mode=False, max_samples=100):
     """Extract hidden states with optional debugging mode"""
     dataset = BertSampleDataset(corpus_path, toker)
     
@@ -57,7 +57,7 @@ def main():
     bert_model = "bert-base-multilingual-cased"
     output_dir = "output/cmlm_model"
     bert_dump_path = "output/bert_dump"
-    num_steps_to_run = 1  # Should match the training steps
+    num_steps_to_run = 100000  # Should match the training steps
     
     # Path to model checkpoint from Stage 1
     ckpt_path = f"{output_dir}/model_step_{num_steps_to_run}.pt"
@@ -99,7 +99,7 @@ def main():
     print("Extracting hidden states...")
     
     # Set debug mode to False for full processing, True for quick debugging
-    debug_mode = True  # Change to True for faster debugging
+    debug_mode = False  # Change to True for faster debugging
     max_samples = 100   # Number of samples to process in debug mode
     
     with shelve.open(f'{bert_dump_path}/db', 'c') as out_db, torch.no_grad():

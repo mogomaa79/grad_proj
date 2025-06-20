@@ -18,7 +18,7 @@ def main():
     print("Starting translation and evaluation...")
     
     # Configuration
-    num_steps_to_run_kd = 1
+    num_steps_to_run_kd = 100000
     model_path = f"output/kd-model/ckpt/model_step_{num_steps_to_run_kd}.pt"
     data_dir = "data/de-en"
     src_file = f"{data_dir}/test.de.bert"
