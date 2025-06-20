@@ -22,7 +22,7 @@ def main():
     prepro_args = argparse.Namespace(
         src=f"{data_dir}/train.de.bert",
         tgt=f"{data_dir}/train.en.bert",
-        output='data/DEEN.db'
+        output='data/DEEN'
     )
     
     # Run preprocessing
