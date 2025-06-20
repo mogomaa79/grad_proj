@@ -6,7 +6,7 @@ import torch
 import numpy as np
 import random
 from torch.utils.data import DataLoader
-from transformers import BertTokenizer, AdamW, get_linear_schedule_with_warmup
+from transformers import BertTokenizer, get_linear_schedule_with_warmup
 
 # Add paths
 sys.path.append('.')
@@ -111,7 +111,7 @@ def main():
                     if any(nd in n for nd in no_decay)],
          'weight_decay': 0.0}
     ]
-    optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
+    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=learning_rate)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=int(max_steps * warmup_proportion),
